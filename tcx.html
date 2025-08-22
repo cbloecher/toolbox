@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TCX - Temp Cipher Exchange</title>
+  <style>
+    :root { --fg:#0f172a; --bg:#f8fafc; --muted:#475569; --accent:#2563eb; --ok:#16a34a; --err:#dc2626; }
+    html,body{height:100%}
+    body{margin:0;font:16px/1.4 system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--fg)}
+    .wrap{max-width:980px;margin:40px auto;padding:0 16px}
+    h1{font-size:22px;margin:0 0 8px}
+    .note{color:var(--muted);margin:0 0 24px}
+    label{display:block;font-weight:600;margin:12px 0 6px}
+    input[type="text"], input[type="password"], textarea{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:10px;padding:10px 12px;font:inherit;background:white}
+    textarea{min-height:140px;resize:vertical}
+    .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    .btn{appearance:none;border:1px solid #cbd5e1;background:white;border-radius:999px;padding:10px 16px;cursor:pointer;font-weight:600}
+    .btn.primary{background:var(--accent);border-color:var(--accent);color:white}
+    .btn.ghost{background:transparent}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    .pill{display:inline-block;border:1px dashed #cbd5e1;border-radius:999px;padding:4px 10px;color:var(--muted);font-size:12px}
+    .grid{display:grid;grid-template-columns:1fr;gap:16px}
+    @media(min-width:900px){.grid{grid-template-columns:1fr 1fr}}
+    .status{margin-top:12px;font-size:14px}
+    .status.ok{color:var(--ok)}
+    .status.err{color:var(--err)}
+    .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+    .right{display:flex;gap:8px;align-items:center;justify-content:flex-end}
+    code{background:#e2e8f0;padding:0 6px;border-radius:6px}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+    .small{font-size:12px;color:var(--muted)}
+    .box{border:1px dashed #cbd5e1;padding:12px;border-radius:12px;background:#fff}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>TCX - Temp Cipher Exchange</h1>
+    <p class="note">ECDH + AES‑GCM (Browser‑Only). Erstellt temporäre Schlüsselpaar(e) im Browser (P‑256), tauscht nur <em>öffentliche</em> Schlüssel per E‑Mail/Chat und verschlüsselt mit abgeleitetem Sitzungsschlüssel (HKDF‑SHA256 → AES‑256‑GCM). <strong>Alles lokal.</strong></p>
+
+    <div class="box">
+      <div class="topbar">
+        <strong>1) Eigene Schlüssel</strong>
+        <div class="right">
+          <span class="pill">ECDH P‑256 · HKDF‑SHA256 · AES‑GCM</span>
+        </div>
+      </div>
+      <div class="row">
+        <button id="gen" class="btn primary" type="button">Schlüsselpaar erzeugen</button>
+        <button id="copyMyPub" class="btn" type="button" disabled>Meinen Public‑Key kopieren</button>
+      </div>
+      <label class="small">Mein Public‑Key (Base64, per E‑Mail versenden)</label>
+      <textarea id="myPub" class="mono" placeholder="— noch nicht erzeugt —" readonly></textarea>
+      <div class="small">Fingerprint: <span id="myFp" class="mono">—</span></div>
+    </div>
+
+    <div class="box" style="margin-top:16px">
+      <div class="topbar">
+        <strong>2) Öffentlichen Schlüssel der Gegenstelle einfügen</strong>
+        <div class="right">
+          <button id="pastePeerPub" class="btn" type="button">Einfügen</button>
+          <button id="setPeer" class="btn" type="button">Übernehmen</button>
+        </div>
+      </div>
+      <textarea id="peerPubInput" class="mono" placeholder="Peer Public‑Key (Base64) hier einfügen …"></textarea>
+      <div class="small">Peer‑Fingerprint: <span id="peerFp" class="mono">—</span></div>
+    </div>
+
+    <div class="grid" style="margin-top:16px">
+      <div>
+        <div class="topbar">
+          <label for="plain" style="margin:0">Klartext</label>
+          <div class="right">
+            <button id="copyPlain" class="btn" type="button">Kopieren</button>
+            <button id="clearPlain" class="btn" type="button">Leeren</button>
+          </div>
+        </div>
+        <textarea id="plain" class="mono" placeholder="Hier Text einfügen …"></textarea>
+      </div>
+      <div>
+        <div class="topbar">
+          <label for="enc" style="margin:0">Verschlüsselt (Mail‑Text)</label>
+          <div class="right">
+            <button id="copyEnc" class="btn" type="button">Kopieren</button>
+            <button id="clearEnc" class="btn" type="button">Leeren</button>
+          </div>
+        </div>
+        <textarea id="enc" class="mono" placeholder="ecdh:v1:&lt;base64&gt; …"></textarea>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:12px">
+      <button id="encrypt" class="btn primary" type="button" disabled>Verschlüsseln →</button>
+      <button id="decrypt" class="btn" type="button" disabled>← Entschlüsseln</button>
+    </div>
+
+    <div id="status" class="status" aria-live="polite"></div>
+
+    <p class="small" style="margin-top:16px">
+      <strong>Workflow:</strong> Beide erzeugen <em>einmalig</em> ein Schlüsselpaar → Public‑Keys per E‑Mail tauschen → Peer‑Key übernehmen → Text verschlüsseln → <code>ecdh:v1:…</code> per E‑Mail senden. Zum Entschlüsseln den String einfügen. <strong>Hinweis:</strong> Schlüssel sind temporär (gehen beim Tab‑Schließen verloren). Optional Fingerprints über zweiten Kanal abgleichen.
+    </p>
+  </div>
+
+<script>
+(async function(){
+  const enc = new TextEncoder();
+  const dec = new TextDecoder();
+
+  const $ = id => document.getElementById(id);
+  const ui = {
+    gen: $('gen'), copyMyPub: $('copyMyPub'), myPub: $('myPub'), myFp: $('myFp'),
+    pastePeerPub: $('pastePeerPub'), setPeer: $('setPeer'), peerPubInput: $('peerPubInput'), peerFp: $('peerFp'),
+    plain: $('plain'), enc: $('enc'), encrypt: $('encrypt'), decrypt: $('decrypt'),
+    copyPlain: $('copyPlain'), clearPlain: $('clearPlain'), copyEnc: $('copyEnc'), clearEnc: $('clearEnc'),
+    status: $('status')
+  };
+
+  let myKeyPair = null;          // { publicKey, privateKey }
+  let myPubRaw = null;           // Uint8Array (65 B)
+  let peerPubKey = null;         // CryptoKey
+  let peerPubRaw = null;         // Uint8Array (65 B)
+
+  function setStatus(msg, ok=false){ ui.status.textContent = msg; ui.status.className = 'status ' + (ok?'ok':'err'); }
+  function clearStatus(){ ui.status.textContent=''; ui.status.className='status'; }
+
+  function toB64(bytes){
+    let s=''; const chunk=0x8000; for(let i=0;i<bytes.length;i+=chunk){ s+=String.fromCharCode.apply(null, bytes.subarray(i,i+chunk)); } return btoa(s);
+  }
+  function fromB64(b64){ const bin = atob(b64.trim()); const out = new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) out[i]=bin.charCodeAt(i); return out; }
+
+  async function sha256(bytes){ const d = await crypto.subtle.digest('SHA-256', bytes); return new Uint8Array(d); }
+  function hex(bytes){ return Array.from(bytes).map(b=>b.toString(16).padStart(2,'0')).join('').toUpperCase(); }
+  function fpFormat(bytes){ const h=hex(bytes); return h.match(/.{1,8}/g).join(' '); }
+
+  function concat(a,b){ const out=new Uint8Array(a.length+b.length); out.set(a,0); out.set(b,a.length); return out; }
+  function cmpBytes(a,b){
+    const n=Math.min(a.length,b.length);
+    for(let i=0;i<n;i++){ if(a[i]!==b[i]) return a[i]-b[i]; }
+    return a.length-b.length;
+  }
+
+  async function generateKeys(){
+    try{
+      myKeyPair = await crypto.subtle.generateKey({name:'ECDH', namedCurve:'P-256'}, true, ['deriveBits']);
+      myPubRaw = new Uint8Array(await crypto.subtle.exportKey('raw', myKeyPair.publicKey)); // 65 B
+      const myFpBytes = await sha256(myPubRaw);
+      ui.myPub.value = toB64(myPubRaw);
+      ui.myFp.textContent = fpFormat(myFpBytes);
+      ui.copyMyPub.disabled = false;
+      updateButtons();
+      setStatus('Schlüsselpaar bereit. Public‑Key kopierbar.', true);
+    }catch(e){ console.error(e); setStatus('Fehler bei der Schlüsselgenerierung.'); }
+  }
+
+  async function setPeer(){
+    try{
+      const b64 = ui.peerPubInput.value.trim(); if(!b64) return setStatus('Kein Peer‑Public‑Key.');
+      const raw = fromB64(b64);
+      // Import als ECDH Public Key
+      peerPubKey = await crypto.subtle.importKey('raw', raw, {name:'ECDH', namedCurve:'P-256'}, true, []);
+      peerPubRaw = new Uint8Array(raw);
+      const fp = await sha256(peerPubRaw);
+      ui.peerFp.textContent = fpFormat(fp);
+      updateButtons();
+      setStatus('Peer‑Public‑Key übernommen.', true);
+    }catch(e){ console.error(e); setStatus('Ungültiger Peer‑Public‑Key (Base64/Curve prüfen).'); }
+  }
+
+  async function deriveAesKey(salt){
+    // ECDH shared secret (32 B)
+    const sharedBits = await crypto.subtle.deriveBits({name:'ECDH', public: peerPubKey}, myKeyPair.privateKey, 256);
+    const shared = new Uint8Array(sharedBits);
+    // Deterministisches info: sortierte Konkatenation der zwei Public Keys
+    const [a,b] = cmpBytes(myPubRaw, peerPubRaw) <= 0 ? [myPubRaw, peerPubRaw] : [peerPubRaw, myPubRaw];
+    const info = concat(a,b);
+    // HKDF → AES‑GCM Key
+    const baseKey = await crypto.subtle.importKey('raw', shared, 'HKDF', false, ['deriveKey']);
+    return crypto.subtle.deriveKey(
+      { name:'HKDF', hash:'SHA-256', salt, info },
+      baseKey,
+      { name:'AES-GCM', length:256 },
+      false,
+      ['encrypt','decrypt']
+    );
+  }
+
+  async function encrypt(){
+    try{
+      clearStatus();
+      if(!myKeyPair || !peerPubKey) return setStatus('Eigene/Peer-Schlüssel fehlen.');
+      const msg = ui.plain.value; if(!msg) return setStatus('Kein Klartext.');
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const iv   = crypto.getRandomValues(new Uint8Array(12));
+      const aesKey = await deriveAesKey(salt);
+      const ctBuf = await crypto.subtle.encrypt({name:'AES-GCM', iv}, aesKey, enc.encode(msg));
+      const ct = new Uint8Array(ctBuf);
+      // Paket: salt(16) || iv(12) || senderPubRaw(65) || ciphertext
+      const out = new Uint8Array(16 + 12 + myPubRaw.length + ct.length);
+      let o=0; out.set(salt,o); o+=16; out.set(iv,o); o+=12; out.set(myPubRaw,o); o+=myPubRaw.length; out.set(ct,o);
+      ui.enc.value = 'ecdh:v1:' + toB64(out);
+      setStatus('Verschlüsselt. String ist kopierbereit.', true);
+    }catch(e){ console.error(e); setStatus('Fehler beim Verschlüsseln.'); }
+  }
+
+  async function decrypt(){
+    try{
+      clearStatus();
+      if(!myKeyPair) return setStatus('Eigenes Schlüsselpaar fehlt.');
+      const data = ui.enc.value.trim(); if(!data) return setStatus('Kein verschlüsselter Text.');
+      if(!data.startsWith('ecdh:v1:')) return setStatus('Ungültiges Format (Prefix ecdh:v1 fehlt).');
+      const bytes = fromB64(data.slice(8));
+      if(bytes.length < 16+12+65+1) return setStatus('Daten zu kurz.');
+      const salt = bytes.slice(0,16);
+      const iv   = bytes.slice(16,28);
+      const sender = bytes.slice(28, 28+65); // raw pubkey P‑256 unkomprimiert
+      const cipher = bytes.slice(28+65);
+      // import sender key & set as peer for this op
+      const senderKey = await crypto.subtle.importKey('raw', sender, {name:'ECDH', namedCurve:'P-256'}, true, []);
+      peerPubKey = senderKey; // verwenden
+      peerPubRaw = new Uint8Array(sender);
+      const aesKey = await deriveAesKey(salt);
+      const ptBuf = await crypto.subtle.decrypt({name:'AES-GCM', iv}, aesKey, cipher);
+      ui.plain.value = dec.decode(ptBuf);
+      // update UI peer fp (helpful)
+      const fp = await sha256(peerPubRaw); ui.peerFp.textContent = fpFormat(fp);
+      setStatus('Entschlüsselt.', true);
+    }catch(e){ console.error(e); setStatus('Fehler beim Entschlüsseln (falscher Schlüssel oder beschädigte Daten?).'); }
+  }
+
+  function updateButtons(){
+    const ready = !!(myKeyPair && (peerPubKey));
+    ui.encrypt.disabled = !ready;
+    ui.decrypt.disabled = !myKeyPair;
+  }
+
+  // Clipboard helpers
+  ui.copyMyPub.addEventListener('click', async ()=>{ try{ await navigator.clipboard.writeText(ui.myPub.value||''); setStatus('Public‑Key kopiert.', true);}catch{ setStatus('Kopieren nicht möglich.'); } });
+  ui.pastePeerPub.addEventListener('click', async ()=>{ try{ ui.peerPubInput.value = await navigator.clipboard.readText(); clearStatus(); }catch{ setStatus('Einfügen nicht möglich.'); } });
+  ui.copyPlain.addEventListener('click', async ()=>{ try{ await navigator.clipboard.writeText(ui.plain.value||''); setStatus('Klartext kopiert.', true);}catch{ setStatus('Kopieren nicht möglich.'); } });
+  ui.copyEnc.addEventListener('click', async ()=>{ try{ await navigator.clipboard.writeText(ui.enc.value||''); setStatus('Verschlüsselter Text kopiert.', true);}catch{ setStatus('Kopieren nicht möglich.'); } });
+  ui.clearPlain.addEventListener('click', ()=>{ ui.plain.value=''; clearStatus(); });
+  ui.clearEnc.addEventListener('click', ()=>{ ui.enc.value=''; clearStatus(); });
+
+  // Bind buttons
+  ui.gen.addEventListener('click', generateKeys);
+  ui.setPeer.addEventListener('click', setPeer);
+  ui.encrypt.addEventListener('click', encrypt);
+  ui.decrypt.addEventListener('click', decrypt);
+
+  // Feature checks
+  if(!('crypto' in window && 'subtle' in crypto)){
+    setStatus('WebCrypto nicht verfügbar. Bitte aktuellen Browser nutzen.');
+    ui.gen.disabled = true; ui.setPeer.disabled = true; ui.encrypt.disabled = true; ui.decrypt.disabled = true;
+  }
+})();
+</script>
+</body>
+</html>
