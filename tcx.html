@@ -38,6 +38,23 @@
     <h1>TCX - Temp Cipher Exchange</h1>
     <p class="note">ECDH + AES‑GCM (Browser‑Only). Erstellt temporäre Schlüsselpaar(e) im Browser (P‑256), tauscht nur <em>öffentliche</em> Schlüssel per E‑Mail/Chat und verschlüsselt mit abgeleitetem Sitzungsschlüssel (HKDF‑SHA256 → AES‑256‑GCM). <strong>Alles lokal.</strong></p>
 
+    <!-- Punkt 0: Mailadressen (optional) -->
+    <div class="box" style="margin-bottom:16px">
+      <div class="topbar">
+        <strong>0) Mailadressen (optional)</strong>
+      </div>
+      <div class="row">
+        <div style="flex:1">
+          <label for="mail1" class="small">Meine Mailadresse</label>
+          <input id="mail1" type="text" placeholder="z.B. alice@example.com" autocomplete="email" />
+        </div>
+        <div style="flex:1">
+          <label for="mail2" class="small">Peer Mailadresse</label>
+          <input id="mail2" type="text" placeholder="z.B. bob@example.com" autocomplete="email" />
+        </div>
+      </div>
+    </div>
+
     <div class="box">
       <div class="topbar">
         <strong>1) Eigene Schlüssel</strong>
@@ -46,8 +63,9 @@
         </div>
       </div>
       <div class="row">
-        <button id="gen" class="btn primary" type="button">Schlüsselpaar erzeugen</button>
-        <button id="copyMyPub" class="btn" type="button" disabled>Meinen Public‑Key kopieren</button>
+  <button id="gen" class="btn primary" type="button">Schlüsselpaar erzeugen</button>
+  <button id="copyMyPub" class="btn" type="button" disabled>Meinen Public‑Key kopieren</button>
+  <button id="mailMyPub" class="btn" type="button" disabled>Meinen Public‑Key mailen</button>
       </div>
       <label class="small">Mein Public‑Key (Base64, per E‑Mail versenden)</label>
       <textarea id="myPub" class="mono" placeholder="— noch nicht erzeugt —" readonly></textarea>
@@ -64,6 +82,10 @@
       </div>
       <textarea id="peerPubInput" class="mono" placeholder="Peer Public‑Key (Base64) hier einfügen …"></textarea>
       <div class="small">Peer‑Fingerprint: <span id="peerFp" class="mono">—</span></div>
+      <div class="small" style="margin-top:8px">
+        <input type="checkbox" id="peerFpChecked" disabled />
+        <label for="peerFpChecked" style="display:inline;font-weight:400;cursor:pointer">Peer‑Fingerprint überprüft</label>
+      </div>
     </div>
 
     <div class="grid" style="margin-top:16px">
@@ -108,11 +130,12 @@
 
   const $ = id => document.getElementById(id);
   const ui = {
-    gen: $('gen'), copyMyPub: $('copyMyPub'), myPub: $('myPub'), myFp: $('myFp'),
+    gen: $('gen'), copyMyPub: $('copyMyPub'), mailMyPub: $('mailMyPub'), myPub: $('myPub'), myFp: $('myFp'),
     pastePeerPub: $('pastePeerPub'), setPeer: $('setPeer'), peerPubInput: $('peerPubInput'), peerFp: $('peerFp'),
+    peerFpChecked: $('peerFpChecked'),
     plain: $('plain'), enc: $('enc'), encrypt: $('encrypt'), decrypt: $('decrypt'),
     copyPlain: $('copyPlain'), clearPlain: $('clearPlain'), copyEnc: $('copyEnc'), clearEnc: $('clearEnc'),
-    status: $('status')
+    status: $('status'), mail1: $('mail1'), mail2: $('mail2')
   };
 
   let myKeyPair = null;          // { publicKey, privateKey }
@@ -146,7 +169,22 @@
       const myFpBytes = await sha256(myPubRaw);
       ui.myPub.value = toB64(myPubRaw);
       ui.myFp.textContent = fpFormat(myFpBytes);
-      ui.copyMyPub.disabled = false;
+  ui.copyMyPub.disabled = false;
+  ui.mailMyPub.disabled = false;
+  // Mail Public-Key Button
+  ui.mailMyPub.addEventListener('click', ()=>{
+    const pub = ui.myPub.value || '';
+    if(!pub) return setStatus('Kein Public‑Key zum Mailen.');
+    const mailto = [];
+    const to = (ui.mail2 && ui.mail2.value) ? encodeURIComponent(ui.mail2.value) : '';
+    const from = (ui.mail1 && ui.mail1.value) ? encodeURIComponent(ui.mail1.value) : '';
+    let subject = 'TCX Public‑Key';
+    if(from) subject += ' von ' + from;
+    const body = encodeURIComponent('Mein TCX Public‑Key (Base64):\n' + pub + '\n');
+    let url = `mailto:${to}?subject=${subject}&body=${body}`;
+    window.location.href = url;
+    setStatus('Mail-Client geöffnet (sofern unterstützt).', true);
+  });
       updateButtons();
       setStatus('Schlüsselpaar bereit. Public‑Key kopierbar.', true);
     }catch(e){ console.error(e); setStatus('Fehler bei der Schlüsselgenerierung.'); }
@@ -160,10 +198,15 @@
       peerPubKey = await crypto.subtle.importKey('raw', raw, {name:'ECDH', namedCurve:'P-256'}, true, []);
       peerPubRaw = new Uint8Array(raw);
       const fp = await sha256(peerPubRaw);
-      ui.peerFp.textContent = fpFormat(fp);
-      updateButtons();
-      setStatus('Peer‑Public‑Key übernommen.', true);
-    }catch(e){ console.error(e); setStatus('Ungültiger Peer‑Public‑Key (Base64/Curve prüfen).'); }
+  ui.peerFp.textContent = fpFormat(fp);
+  if(ui.peerFpChecked) ui.peerFpChecked.disabled = false;
+  updateButtons();
+  setStatus('Peer‑Public‑Key übernommen.', true);
+    }catch(e){ 
+      console.error(e); 
+      setStatus('Ungültiger Peer‑Public‑Key (Base64/Curve prüfen).');
+      if(ui.peerFpChecked) ui.peerFpChecked.disabled = true;
+    }
   }
 
   async function deriveAesKey(salt){
@@ -228,9 +271,13 @@
   }
 
   function updateButtons(){
-    const ready = !!(myKeyPair && (peerPubKey));
+    const ready = !!(myKeyPair && peerPubKey && ui.peerFpChecked && ui.peerFpChecked.checked);
     ui.encrypt.disabled = !ready;
     ui.decrypt.disabled = !myKeyPair;
+  }
+  // Checkbox-Änderung triggert Button-Update
+  if(ui.peerFpChecked){
+    ui.peerFpChecked.addEventListener('change', updateButtons);
   }
 
   // Clipboard helpers
@@ -246,6 +293,18 @@
   ui.setPeer.addEventListener('click', setPeer);
   ui.encrypt.addEventListener('click', encrypt);
   ui.decrypt.addEventListener('click', decrypt);
+
+  // Peer Public-Key Eingabefeld: Fingerprint und Checkbox zurücksetzen
+  if(ui.peerPubInput){
+    ui.peerPubInput.addEventListener('input', ()=>{
+      if(ui.peerFp) ui.peerFp.textContent = '—';
+      if(ui.peerFpChecked) {
+        ui.peerFpChecked.checked = false;
+        ui.peerFpChecked.disabled = true;
+      }
+      updateButtons();
+    });
+  }
 
   // Feature checks
   if(!('crypto' in window && 'subtle' in crypto)){
