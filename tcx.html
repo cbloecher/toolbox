@@ -41,15 +41,15 @@
     <!-- Punkt 0: Mailadressen (optional) -->
     <div class="box" style="margin-bottom:16px">
       <div class="topbar">
-        <strong>0) Mailadressen (optional)</strong>
+        <strong>0) Mailadressen (optional; ggf. aus URL auslesen)</strong>
       </div>
       <div class="row">
         <div style="flex:1">
-          <label for="mail1" class="small">Meine Mailadresse</label>
+          <label for="mail1" class="small">Meine Mailadresse (myMail)</label>
           <input id="mail1" type="text" placeholder="z.B. alice@example.com" autocomplete="email" />
         </div>
         <div style="flex:1">
-          <label for="mail2" class="small">Peer Mailadresse</label>
+          <label for="mail2" class="small">Peer Mailadresse (peerMail)</label>
           <input id="mail2" type="text" placeholder="z.B. bob@example.com" autocomplete="email" />
         </div>
       </div>
@@ -124,10 +124,10 @@
   </div>
 
 <script>
-(async function(){
-  const enc = new TextEncoder();
-  const dec = new TextDecoder();
 
+const TCX_URL = "https://cbloecher.github.io/toolbox/tcx.html";
+
+(async function(){
   const $ = id => document.getElementById(id);
   const ui = {
     gen: $('gen'), copyMyPub: $('copyMyPub'), mailMyPub: $('mailMyPub'), myPub: $('myPub'), myFp: $('myFp'),
@@ -137,6 +137,16 @@
     copyPlain: $('copyPlain'), clearPlain: $('clearPlain'), copyEnc: $('copyEnc'), clearEnc: $('clearEnc'),
     status: $('status'), mail1: $('mail1'), mail2: $('mail2')
   };
+  // Peer-Mailadresse und eigene Mailadresse aus URL-Parametern auslesen
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const peerMail = params.get('peerMail');
+    if(peerMail && ui.mail2) ui.mail2.value = peerMail;
+    const myMail = params.get('myMail');
+    if(myMail && ui.mail1) ui.mail1.value = myMail;
+  } catch(e) { /* ignore */ }
+  const enc = new TextEncoder();
+  const dec = new TextDecoder();
 
   let myKeyPair = null;          // { publicKey, privateKey }
   let myPubRaw = null;           // Uint8Array (65 B)
@@ -180,7 +190,14 @@
     const from = (ui.mail1 && ui.mail1.value) ? encodeURIComponent(ui.mail1.value) : '';
     let subject = 'TCX Public‑Key';
     if(from) subject += ' von ' + from;
-    const body = encodeURIComponent('Mein TCX Public‑Key (Base64):\n' + pub + '\n');
+    let bodyText = 'TCX - Temp Cipher Exchange\n\n';
+    bodyText += 'Mein TCX Public‑Key (Base64):\n' + pub + '\n\n';
+    let peerMailParam = '';
+    if(ui.mail1 && ui.mail1.value) {
+      peerMailParam = '?peerMail=' + encodeURIComponent(ui.mail1.value);
+    }
+    bodyText += 'TCX-Tool: ' + TCX_URL + peerMailParam + '\n';
+    const body = encodeURIComponent(bodyText);
     let url = `mailto:${to}?subject=${subject}&body=${body}`;
     window.location.href = url;
     setStatus('Mail-Client geöffnet (sofern unterstützt).', true);
