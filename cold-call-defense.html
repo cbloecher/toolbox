@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cold Call Defense – Beweissicherung</title>
+  <meta name="description" content="Checkliste und Formular zur Abwehr und Beweissicherung bei unerwünschten Werbe- und Umfrageanrufen (UWG/DSGVO)." />
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <style>
+    body{margin:0;background:#f9fafb;color:#111827;font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial}
+    .wrap{max-width:980px;margin:24px auto;padding:0 16px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,.08)}
+    header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid #e5e7eb;background:#f3f4f6;gap:12px;flex-wrap:wrap}
+    header h1{font-size:1.2rem;margin:0}
+    header .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .status{display:flex;gap:8px;align-items:center}
+    .chip{display:inline-block;font-size:.78rem;border:1px solid #e5e7eb;padding:2px 8px;border-radius:999px}
+    .chip.ok{background:#ecfdf5;border-color:#a7f3d0;color:#065f46}
+    .chip.warn{background:#fff7ed;border-color:#fed7aa;color:#9a3412}
+    .chip.err{background:#fef2f2;border-color:#fecaca;color:#b91c1c}
+    .btn{appearance:none;border:1px solid #d1d5db;background:#f9fafb;color:#111827;padding:8px 12px;border-radius:8px;cursor:pointer}
+    .btn:hover{background:#e5e7eb}
+    .btn.primary{background:#2563eb;color:#fff;border-color:#2563eb}
+    .btn.primary:hover{background:#1d4ed8}
+    .section{padding:18px 20px;border-top:1px solid #e5e7eb}
+    .section h2{font-size:1rem;margin:0 0 10px}
+    label{display:block;font-size:.92rem;color:#374151;margin:6px 0}
+    input,select,textarea{width:100%;box-sizing:border-box;background:#fff;color:#111827;border:1px solid #d1d5db;border-radius:8px;padding:8px 10px}
+    textarea{min-height:140px;resize:vertical}
+    .hint{font-size:.86rem;color:#6b7280}
+    .row{display:flex;flex-wrap:wrap;gap:16px}
+    .row>div{flex:1;min-width:220px}
+    .warning{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:10px 12px;border-radius:8px}
+    .list{margin:8px 0 0;padding-left:18px}
+    .list li{margin:6px 0}
+    .aushang{font-size:.95rem}
+    .checkbox-group label{display:grid;grid-template-columns:24px 1fr;align-items:start;column-gap:8px;margin:6px 0}
+    .checkbox-group input[type=checkbox]{margin:0;align-self:start;width:auto}
+    #db-result{margin-top:10px}
+    @media print{header .actions,.no-print{display:none!important}body{background:#fff}.card{border:1px solid #bbb;box-shadow:none}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card" id="app">
+    <header>
+      <h1>Cold Call Defense – Beweissicherung (UWG/DSGVO)</h1>
+      <div class="actions">
+        <div class="status">
+          <span>Service:</span>
+          <span id="svc-chip" class="chip">prüfe…</span>
+          <span id="svc-version" class="hint"></span>
+        </div>
+        <button class="btn" type="button" onclick="window.print()">Drucken</button>
+        <button class="btn" type="button" onclick="toggleView()">Formular/Aushang</button>
+      </div>
+    </header>
+
+    <div class="section">
+      <div class="warning"><strong>Hinweis:</strong> Keine heimliche Aufzeichnung! In Deutschland ist das Mitschneiden ohne Einwilligung strafbar (§ 201 StGB). Protokolliere stattdessen.</div>
+    </div>
+
+    <div class="section aushang" id="aushang" hidden>
+      <ol class="list">
+        <li><strong>Gesprächsdaten erfassen:</strong> Datum, Uhrzeit, Rufnummer, Anrufername, Firma/Auftraggeber.</li>
+        <li><strong>Nachfragen:</strong> Auftraggeber? Zweck? Datenquelle der Telefonnummer?</li>
+        <li><strong>Inhalt dokumentieren:</strong> Thema, Werbe-/Absatzbezug, behauptete Einwilligung.</li>
+        <li><strong>Beweissicherung:</strong> Stichpunkte mitschreiben (keine Aufnahme).</li>
+        <li><strong>Abbruch:</strong> Gespräch sachlich beenden.</li>
+        <li><strong>Intern melden:</strong> Verantwortliche informieren; ggf. BNetzA/Datenschutzaufsicht prüfen.</li>
+      </ol>
+    </div>
+
+    <form id="formview" hx-post="/api/cold-call-defense.php?action=insert" hx-target="#db-result" hx-swap="innerHTML">
+      <div class="section">
+        <h2>1) Gesprächsdaten</h2>
+        <div class="row">
+          <div><label for="datum">Datum</label><input id="datum" name="datum" type="date"></div>
+          <div><label for="zeit">Uhrzeit</label><input id="zeit" name="zeit" type="time"></div>
+        </div>
+        <div class="row">
+          <div><label for="anrufer">Name des Anrufers</label><input id="anrufer" name="anrufer" type="text"></div>
+          <div><label for="firma">Firma/Callcenter</label><input id="firma" name="firma" type="text"></div>
+        </div>
+        <div class="row">
+          <div><label for="rufnummer">Angezeigte Rufnummer</label><input id="rufnummer" name="rufnummer" type="text"></div>
+          <div>
+            <label for="unterdrueckt">Rufnummer unterdrückt?</label>
+            <select id="unterdrueckt" name="unterdrueckt"><option value="nein" selected>nein</option><option value="ja">ja</option></select>
+          </div>
+        </div>
+        <label for="auftrag">Auftraggeber</label>
+        <input id="auftrag" name="auftrag" type="text" placeholder="z. B. Telekommunikationsunternehmen">
+        <label for="mitarbeiter">Mitarbeiter</label>
+        <input id="mitarbeiter" name="mitarbeiter" type="text">
+      </div>
+
+      <div class="section">
+        <h2>2) Nachfragen an den Anrufer</h2>
+        <div class="checkbox-group">
+          <label><input type="checkbox" name="q_auftrag" value="1" id="q-auftrag"><span>Auftraggeber gefragt</span></label>
+          <label><input type="checkbox" name="q_zweck" value="1" id="q-zweck"><span>Zweck/Verwendung der Daten gefragt</span></label>
+          <label><input type="checkbox" name="q_herkunft" value="1" id="q-herkunft"><span>Herkunft der Telefonnummer gefragt</span></label>
+        </div>
+        <label for="herkunft">Antwort zur Datenherkunft (falls genannt)</label>
+        <input id="herkunft" name="herkunft" type="text">
+      </div>
+
+      <div class="section">
+        <h2>3) Gesprächsinhalt dokumentieren</h2>
+        <div class="checkbox-group">
+          <label><input type="checkbox" name="werbeBezug" value="1" id="werbeBezug"><span>Erkennbarer Werbe-/Absatzbezug</span></label>
+          <label><input type="checkbox" name="vorwand" value="1" id="vorwand"><span>„Umfrage“ als Vorwand</span></label>
+          <label><input type="checkbox" name="einwilligungBehauptet" value="1" id="einwilligungBehauptet"><span>Einwilligung wurde behauptet</span></label>
+        </div>
+        <label for="thema">Thema/Fragen (Stichworte)</label>
+        <textarea id="thema" name="thema" placeholder="Kurz notieren, was gefragt wurde"></textarea>
+        <label for="einwilligungDetails">Details zur behaupteten Einwilligung</label>
+        <input id="einwilligungDetails" name="einwilligungDetails" type="text" placeholder="Wann/wo erteilt? Nachweis?">
+      </div>
+
+      <div class="section">
+        <h2>4) Beweissicherung</h2>
+        <div class="checkbox-group">
+          <label><input type="checkbox" name="b_protokoll" value="1" id="b-protokoll" checked><span>Protokoll erstellt</span></label>
+          <label><input type="checkbox" name="b_mail" value="1" id="b-mail"><span>Bestätigung per E-Mail erbeten</span></label>
+          <label><input type="checkbox" name="b_abbruch" value="1" id="b-abbruch"><span>Gespräch beendet</span></label>
+        </div>
+      </div>
+
+      <div class="section no-print">
+        <h2>5) Interne Schritte</h2>
+        <ul class="list">
+          <li>Weitergabe an Datenschutzbeauftragten / zuständige Stelle.</li>
+          <li>Prüfung einer Beschwerde an Bundesnetzagentur und Datenschutzaufsicht.</li>
+        </ul>
+        <p>
+          <button class="btn primary" type="submit">Datenbank</button>
+          <span class="hint">Speichert über den konfigurierten PHP-Microservice.</span>
+        </p>
+        <div id="db-result"></div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  const SERVICE_URL = "/api/cold-call-defense.php";
+  const EXPECTED_VERSION = "1.0.0";
+
+  function toggleView(){
+    const a=document.getElementById("aushang");
+    const f=document.getElementById("formview");
+    a.hidden=!a.hidden;
+    f.hidden=!f.hidden;
+  }
+
+  document.addEventListener("DOMContentLoaded",()=>{
+    const now=new Date();
+    const pad=n=>String(n).padStart(2,"0");
+    document.getElementById("datum").value=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+    document.getElementById("zeit").value=`${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    checkService();
+  });
+
+  async function checkService(){
+    const chip=document.getElementById("svc-chip");
+    const ver=document.getElementById("svc-version");
+    try{
+      const resp=await fetch(`${SERVICE_URL}?action=version`,{headers:{Accept:"application/json"}});
+      if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data=await resp.json();
+      const v=data.version||"unbekannt";
+      ver.textContent=`v${v}`;
+      if(v===EXPECTED_VERSION){
+        chip.className="chip ok";
+        chip.textContent="OK";
+      }else{
+        chip.className="chip warn";
+        chip.textContent=`Version abweichend (erwartet v${EXPECTED_VERSION})`;
+      }
+    }catch(e){
+      chip.className="chip err";
+      chip.textContent="offline";
+      ver.textContent="";
+    }
+  }
+</script>
+</body>
+</html>
