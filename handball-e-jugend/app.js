@@ -296,14 +296,18 @@
 
   function renderClockSync() {
     const view = Core.clockDisplay(game);
+    const [minutes, seconds] = view.text.split(":");
     wrapSheet("Mit Hallenuhr synchronisieren",
-      '<p class="sheet-help">Aktuelle Hallenuhr in <strong>MM:SS</strong> eingeben (' +
+      '<p class="sheet-help">Hallenuhr in Minuten und Sekunden eingeben (' +
       (view.direction === "up" ? "aufwärts" : "abwärts") +
-      ' zählend). Nur die laufende Anzeige wird korrigiert. Zeitstempel und gespeicherte Spielzeiten bisheriger Tore bleiben unverändert.</p>' +
-      '<form data-form="clock-sync"><label for="sync-clock-value">Hallenuhr · MM:SS</label>' +
-      '<div class="form-row"><input id="sync-clock-value" name="clockTime" autofocus inputmode="numeric" ' +
-      'pattern="[0-9]{1,2}:[0-5][0-9]" maxlength="5" required placeholder="12:35" value="' + view.text + '">' +
-      '<button type="submit" class="primary-button">Abgleichen</button></div></form>');
+      ' zählend). Nur der aktuelle Zeitanker wird geändert. Bereits erfasste Torzeiten und UTC-Zeitstempel bleiben unverändert.</p>' +
+      '<form data-form="clock-sync">' +
+      '<div class="clock-sync-fields"><label for="sync-clock-minutes">Minuten' +
+      '<input id="sync-clock-minutes" name="clockMinutes" autofocus type="number" inputmode="numeric" min="0" max="20" required value="' + minutes + '"></label>' +
+      '<span aria-hidden="true">:</span>' +
+      '<label for="sync-clock-seconds">Sekunden' +
+      '<input id="sync-clock-seconds" name="clockSeconds" type="number" inputmode="numeric" min="0" max="59" required value="' + seconds + '"></label></div>' +
+      '<button type="submit" class="primary-button full-button">Hallenuhr abgleichen</button></form>');
   }
   function renderScorerSheet() {
     const teamId = ui.sheet.teamId;
@@ -441,7 +445,13 @@
     const values = new FormData(form);
     const type = form.dataset.form;
     if (type === "clock-sync") {
-      finishAndClose(() => Core.syncHallClock(game, values.get("clockTime")), "Hallenuhr abgeglichen");
+      const mm = String(values.get("clockMinutes") ?? "").trim();
+      const ss = String(values.get("clockSeconds") ?? "").trim();
+      if (!/^\d{1,2}$/.test(mm) || !/^\d{1,2}$/.test(ss)) {
+        toast("Minuten und Sekunden als Zahlen von 0 bis 20 bzw. 59 eingeben.");
+        return;
+      }
+      finishAndClose(() => Core.syncHallClock(game, mm + ":" + ss.padStart(2, "0")), "Hallenuhr abgeglichen");
       return;
     }
     if (type === "lineup") {
