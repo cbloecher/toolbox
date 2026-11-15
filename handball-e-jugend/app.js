@@ -97,7 +97,8 @@
       slotHtml(teamId, 0) +
       '<div class="position-caption"><span>Feldspieler</span><span>6 Plätze</span></div>' +
       '<div class="field-grid">' + [1, 2, 3, 4, 5, 6].map(i => slotHtml(teamId, i)).join("") + '</div></div>' +
-      '<button type="button" class="change-button" data-action="sub" data-team="' + teamId + '"' + (game.status === "finished" ? " disabled" : "") + '>⇄ &nbsp; Wechsel</button></section>';
+      '<div class="team-actions"><button type="button" class="lineup-button" data-action="lineup" data-team="' + teamId + '"' + (game.status === "finished" ? " disabled" : "") + '>≡ Aufstellung</button>' +
+      '<button type="button" class="change-button" data-action="sub" data-team="' + teamId + '"' + (game.status === "finished" ? " disabled" : "") + '>⇄ Wechsel</button></div></section>';
   }
   function renderSummary() {
     const own1 = Core.halfStats(game, "own", 1), own2 = Core.halfStats(game, "own", 2);
@@ -138,7 +139,8 @@
     ui.sheet = Object.assign({ type }, extra || {});
     renderSheet();
     const input = layer.querySelector("input[autofocus]");
-    if (input) setTimeout(() => input.focus(), 70);
+    // Fokus unmittelbar aus dem Tap heraus setzen (wichtig für die iOS-Tastatur).
+    if (input) input.focus();
   }
   function closeSheet() {
     ui.sheet = null;
@@ -167,6 +169,28 @@
       (bank.length ? '<h3>Bekannte Ersatzspieler</h3><div class="bench-list">' +
         bank.map(p => '<button type="button" class="bench-button" data-action="assign-bench" data-number="' + p.number + '">#' + p.number + '</button>').join("") + '</div>' : ""));
   }
+  function renderLineup() {
+    const { teamId } = ui.sheet;
+    const t = game.teams[teamId];
+    const rows = t.slots.map((pId, slot) => {
+      const p = pId ? Core.playerById(game, teamId, pId) : null;
+      const label = slot === 0 ? "Torwart" : "Feldspieler " + slot;
+      return '<div class="lineup-row"><label for="lineup-' + slot + '">' + label + '</label>' +
+        '<input id="lineup-' + slot + '" name="slot' + slot + '" inputmode="numeric" ' +
+        'type="text" pattern="[0-9]{1,2}" maxlength="2" autocomplete="off" ' +
+        (p ? 'value="' + escapeHtml(p.number) + '" readonly title="Bereits besetzt; Änderung über Wechsel oder Nummernkorrektur"' :
+             'placeholder="Nr." ' + (t.slots.slice(0, slot).every(Boolean) ? 'autofocus ' : '')) +
+        'enterkeyhint="next" aria-label="' + label + ' – Rückennummer"></div>';
+    }).join("");
+    wrapSheet(teams[teamId] + " · Erstaufstellung (6+1)",
+      '<p class="sheet-help">Sieben Nummern direkt untereinander eingeben: Torwart + sechs Feldspieler. Mit „Weiter“ auf der Tastatur zum nächsten Feld. Leere Plätze sind erlaubt. Es werden noch keine Tore gezählt.</p>' +
+      '<form data-form="lineup"><div class="lineup-grid">' + rows + '</div>' +
+      '<button type="submit" class="primary-button full-button">Aufstellung übernehmen</button></form>' +
+      '<p class="sheet-help lineup-footnote">Bereits belegte Positionen sind geschützt; Spielerwechsel bitte über „Wechsel“ erfassen.</p>');
+    const firstEmpty = layer.querySelector('.lineup-grid input:not([readonly])');
+    // Bei einem Tap direkt fokussieren, damit die mobile Zifferntastatur aufgeht.
+    if (firstEmpty) firstEmpty.focus();
+  }
   function renderSub() {
     const { teamId, slot } = ui.sheet;
     const t = game.teams[teamId], bank = benchOptions(teamId);
@@ -181,7 +205,7 @@
           '<button class="bench-button" type="button" data-action="sub-bench" data-number="' + p.number + '">#' + p.number + '</button>').join("") + '</div>'
           : '<p class="empty-note">Noch keine Ersatzspieler bekannt.</p>') +
         '<h3>Neuen Spieler einwechseln</h3><form data-form="sub"><div class="form-row">' +
-        '<input id="number" name="number" inputmode="numeric" pattern="[0-9]{1,2}" maxlength="2" autocomplete="off" required placeholder="Rückennummer" aria-label="Rückennummer">' +
+        '<input autofocus id="number" name="number" inputmode="numeric" pattern="[0-9]{1,2}" maxlength="2" autocomplete="off" required placeholder="Rückennummer" aria-label="Rückennummer">' +
         '<button type="submit" class="primary-button">Wechseln</button></div></form>' : ""));
   }
   function renderHistory() {
@@ -251,6 +275,7 @@
     if (!ui.sheet) { document.body.classList.remove("sheet-open"); layer.replaceChildren(); return; }
     switch (ui.sheet.type) {
       case "assign": renderAssign(); break;
+      case "lineup": renderLineup(); break;
       case "sub": renderSub(); break;
       case "history": renderHistory(); break;
       case "edit": renderEdit(); break;
@@ -289,8 +314,14 @@
       else mutate(() => Core.recordGoal(game, teamId, pId), "Tor · " + teams[teamId] + " " + numberOf(teamId, pId));
       return;
     }
+    if (act === "lineup") { openSheet("lineup", { teamId }); return; }
     if (act === "sub") { openSheet("sub", { teamId, slot: null }); return; }
-    if (act === "outgoing") { ui.sheet.slot = slot; renderSheet(); return; }
+    if (act === "outgoing") {
+      ui.sheet.slot = slot; renderSheet();
+      const numberInput = layer.querySelector('form[data-form="sub"] input[name="number"]');
+      if (numberInput) numberInput.focus();
+      return;
+    }
     if (act === "assign-bench") {
       finishAndClose(() => Core.putInEmptySlot(game, ui.sheet.teamId, ui.sheet.slot, button.dataset.number), "#" + button.dataset.number + " eingesetzt"); return;
     }
@@ -328,6 +359,21 @@
   function onForm(form) {
     const values = new FormData(form);
     const type = form.dataset.form;
+    if (type === "lineup") {
+      const teamId = ui.sheet.teamId;
+      const valuesBySlot = Array.from({ length: 7 }, (_, i) => String(values.get("slot" + i) || "").trim());
+      finishAndClose(() => {
+        // Zuerst auf einer Kopie prüfen: keine Teilbelegung bei ungültiger Nummer.
+        const next = JSON.parse(JSON.stringify(game));
+        valuesBySlot.forEach((number, slot) => {
+          if (next.teams[teamId].slots[slot] !== null || !number) return;
+          Core.putInEmptySlot(next, teamId, slot, number);
+        });
+        game = next;
+        return true;
+      }, "Aufstellung übernommen");
+      return;
+    }
     if (type === "assign") {
       finishAndClose(() => Core.putInEmptySlot(game, ui.sheet.teamId, ui.sheet.slot, values.get("number")), "Spieler eingesetzt"); return;
     }
@@ -399,7 +445,16 @@
     renderSheet();
   });
   document.addEventListener("keydown", function (event) {
-    if (event.key === "Escape" && ui.sheet) closeSheet();
+    if (event.key === "Escape" && ui.sheet) { closeSheet(); return; }
+    if (event.key !== "Enter" || !ui.sheet || ui.sheet.type !== "lineup") return;
+    const input = event.target;
+    if (!input.matches || !input.matches('.lineup-grid input:not([readonly])')) return;
+    const fields = [...layer.querySelectorAll('.lineup-grid input:not([readonly])')];
+    const pos = fields.indexOf(input);
+    if (pos !== -1 && pos < fields.length - 1) {
+      event.preventDefault();
+      fields[pos + 1].focus();
+    }
   });
   render();
   if (ui.storageError) toast("Lokale Speicherung derzeit nicht verfügbar.");
