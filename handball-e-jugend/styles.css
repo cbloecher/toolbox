@@ -24,6 +24,7 @@ h1{margin:2px 0 0;font-size:24px;letter-spacing:-.04em;line-height:1}
 .team-tag{font-size:10px;text-transform:uppercase;font-weight:850;letter-spacing:.075em;opacity:.96}
 .team-name{font-size:11px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:4px 0 0}
 .team-goals{font-variant-numeric:tabular-nums;font-size:52px;letter-spacing:-.06em;font-weight:850;line-height:1.02;margin-top:5px}
+.team-goals{display:block;width:100%;border:0;background:transparent;color:inherit;min-height:55px;padding:0 3px;border-radius:8px;cursor:pointer}.team-goals:active{background:#ffffff21}.team-goals:focus-visible{outline-color:white}
 .team-stats{font-size:11px;margin-top:4px;font-weight:700}
 .team-stats strong{font-weight:900}
 .team-fields{padding:9px 7px 4px;flex:1}
@@ -100,3 +101,18 @@ h1{margin:2px 0 0;font-size:24px;letter-spacing:-.04em;line-height:1}
 @media(max-width:340px){.selector-label{display:none}.team-goals{font-size:43px}.player-number{font-size:20px}.player-meta{font-size:9px}.slot-list{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(min-width:760px){.sheet-backdrop{align-items:center}.sheet{border-radius:22px;max-height:82vh}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+
+.clock-panel{display:flex;align-items:center;gap:11px;padding:10px 12px;margin-bottom:12px;background:#152738;border:1px solid #426076;border-radius:15px}
+.clock-readout{flex:1;min-width:112px;display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.clock-phase{font-size:11px;font-weight:750;color:#bed1e2}
+.clock-time{font-size:36px;font-weight:850;letter-spacing:-.045em;line-height:1.1;font-variant-numeric:tabular-nums}
+.clock-controls{flex:1.4;display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.clock-controls button{min-height:38px;padding:4px 6px;border-radius:9px;font-weight:800;font-size:12px}
+.clock-main{grid-row:span 2;min-height:80px!important}
+.clock-tool{border:1px solid #58738b;background:#273d52;color:#eff8ff}
+.clock-tool:disabled{opacity:.4}
+.clock-sync-hint{font-size:12px;color:#526273;line-height:1.45}
+.scorer-select{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.scorer-choice{border:1px solid #b6c6d7;border-radius:10px;background:#fff;color:#20374f;min-height:58px;font-weight:850;font-size:19px}
+.scorer-unknown{width:100%;margin-top:12px}
+@media(max-width:375px){.clock-panel{padding:8px;gap:6px}.clock-time{font-size:30px}.clock-readout{min-width:100px}.clock-controls button{font-size:11px}}
