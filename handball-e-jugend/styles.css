@@ -116,3 +116,8 @@ h1{margin:2px 0 0;font-size:24px;letter-spacing:-.04em;line-height:1}
 .scorer-choice{border:1px solid #b6c6d7;border-radius:10px;background:#fff;color:#20374f;min-height:58px;font-weight:850;font-size:19px}
 .scorer-unknown{width:100%;margin-top:12px}
 @media(max-width:375px){.clock-panel{padding:8px;gap:6px}.clock-time{font-size:30px}.clock-readout{min-width:100px}.clock-controls button{font-size:11px}}
+
+.clock-sync-fields{display:grid;grid-template-columns:minmax(0,1fr) 18px minmax(0,1fr);gap:8px;align-items:end}
+.clock-sync-fields label{margin:0}
+.clock-sync-fields input{text-align:center;font-size:25px;font-weight:850;font-variant-numeric:tabular-nums}
+.clock-sync-fields > span{align-self:end;padding-bottom:8px;text-align:center;font-size:25px;font-weight:850}
