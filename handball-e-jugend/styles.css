@@ -40,6 +40,16 @@ h1{margin:2px 0 0;font-size:24px;letter-spacing:-.04em;line-height:1}
 .field-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
 .change-button{min-height:46px;border:1px solid #607085;border-radius:10px;background:#27394d;color:#f0f5fa;font-weight:800;font-size:13px;margin:7px 7px 9px}
 .change-button:active{background:#43536b}
+.team-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:7px 7px 9px}
+.team-actions .change-button{margin:0;min-height:48px}
+.lineup-button{min-height:48px;border:1px solid #6b879b;border-radius:10px;background:#29485d;color:#f3f8fb;font-weight:800;font-size:12px}
+.lineup-button:active{background:#45647b}
+.lineup-grid{display:grid;grid-template-columns:1fr;gap:7px}
+.lineup-row{display:grid;grid-template-columns:minmax(0,1fr) 94px;gap:10px;align-items:center;padding:3px 2px}
+.lineup-row label{margin:0;font-size:14px;color:#203448}
+.lineup-row input{text-align:center;font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;min-height:47px}
+.lineup-row input[readonly]{background:#e6edf2;color:#536476;border-color:#c8d4df}
+.lineup-footnote{margin-top:12px}
 .quick-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:12px 0 8px}
 .action-button{border-radius:12px;border:1px solid #455a70;background:#203247;color:#eef5fd;min-height:49px;font-size:14px;font-weight:750}
 .last-event{background:#152434;border:1px solid #283c51;border-radius:10px;padding:10px 12px;font-size:12px;color:#b7ccdf;min-height:39px}
