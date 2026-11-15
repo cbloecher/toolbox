@@ -30,6 +30,18 @@
         </div>
       </div>
 
+      <section class="clock-panel" aria-label="Spieluhr">
+        <div class="clock-readout">
+          <span id="clock-phase" class="clock-phase">1. Halbzeit · Bereit</span>
+          <strong id="clock-time" class="clock-time" aria-label="Aktuelle Spielzeit">00:00</strong>
+        </div>
+        <div class="clock-controls">
+          <button type="button" id="clock-toggle" class="primary-button clock-main" data-action="clock-toggle">▶ Start</button>
+          <button type="button" id="clock-sync" class="clock-tool" data-action="clock-sync">Hallenuhr</button>
+          <button type="button" id="half-end" class="clock-tool" data-action="half-end">HZ beenden</button>
+        </div>
+      </section>
+
       <section class="board" id="board" aria-label="Mannschaften"></section>
 
       <div class="quick-actions">
