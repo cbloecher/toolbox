@@ -14,7 +14,7 @@
       const raw = localStorage.getItem(KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Core.isSupportedGame(parsed)) return parsed;
+        if (Core.isSupportedGame(parsed)) { Core.ensureClock(parsed); return parsed; }
       }
     } catch (error) {
       ui.storageError = true;
@@ -42,7 +42,33 @@
   }
   function numberOf(teamId, playerId) {
     const player = Core.playerById(game, teamId, playerId);
-    return player ? "#" + player.number : "#?";
+    return player ? "#" + player.number : "Schütze offen";
+  }
+  function gameTime(ms) {
+    const sec = Math.floor(Math.max(0, ms || 0) / 1000);
+    return String(Math.floor(sec / 60)).padStart(2, "0") + ":" + String(sec % 60).padStart(2, "0");
+  }
+  function updateClockDisplay() {
+    const view = Core.clockDisplay(game);
+    byId("clock-time").textContent = view.text;
+    const phases = {
+      not_started: "Bereit",
+      running: "Läuft",
+      stopped: "Unterbrochen",
+      ended: game.half === 1 ? "Halbzeitpause" : "Abgeschlossen"
+    };
+    byId("clock-phase").textContent = game.half + ". Halbzeit · " +
+      (game.status === "finished" ? "Spielende" : phases[view.status]) +
+      (view.direction === "down" ? " ↓" : " ↑");
+    const toggle = byId("clock-toggle");
+    toggle.disabled = game.status === "finished";
+    toggle.textContent = view.status === "running" ? "Ⅱ Pause" :
+      view.status === "ended" && game.half === 1 ? "▶ 2. HZ" : "▶ Play";
+    byId("clock-sync").disabled = game.status === "finished" || view.status === "ended";
+    byId("half-end").disabled = game.status === "finished" || view.status === "ended";
+    byId("half-end").textContent = game.half === 1 ? "HZ beenden" : "Spielende";
+    byId("first-half").disabled = game.status === "finished" || view.status === "running";
+    byId("second-half").disabled = game.status === "finished" || view.status === "running";
   }
   function toast(message) {
     clearTimeout(ui.toastTimer);
@@ -91,7 +117,7 @@
       '<header class="team-header">' +
       '<div class="team-tag">' + teams[teamId] + ' · ' + (home ? "Heim" : "Auswärts") + '</div>' +
       '<div class="team-name" title="' + escapeHtml(t.name) + '">' + escapeHtml(t.name) + '</div>' +
-      '<div class="team-goals" aria-label="' + total.goals + ' Tore insgesamt">' + total.goals + '</div>' +
+      '<button type="button" class="team-goals" data-action="scoreboard" data-team="' + teamId + '" aria-label="Tor für ' + escapeHtml(t.name) + ' erfassen, Schütze wählen"' + (game.status === "finished" ? " disabled" : "") + '>' + total.goals + '</button>' +
       '<div class="team-stats">' + current.shooters + ' Schützen / HZ · <strong>Σ ' + total.points + ' Pkt' + (total.provisional ? "*" : "") + '</strong></div>' +
       '</header><div class="team-fields"><div class="position-caption"><span>Torwart</span><span>+' + (t.players.length - t.slots.filter(Boolean).length) + ' Bank</span></div>' +
       slotHtml(teamId, 0) +
@@ -132,6 +158,7 @@
         " · " + last.half + ". HZ · " + niceTime(last.timestamp)
       : "Noch keine Tore erfasst. Leeres Feld antippen und Rückennummer eingeben.";
     renderSummary();
+    updateClockDisplay();
     renderSheet();
   }
 
@@ -214,7 +241,7 @@
       '<p class="sheet-help">Neueste Tore zuerst. Über „Ändern“ lassen sich Schütze, Mannschaft oder Halbzeit korrigieren.</p>' +
       (rows.length ? rows.map(g => '<div class="goal-row"><div><div class="title">' +
         escapeHtml(teams[g.teamId]) + " " + escapeHtml(numberOf(g.teamId, g.playerId)) +
-        '</div><div class="mini">' + g.half + '. Halbzeit · <time>' + niceTime(g.timestamp) +
+        '</div><div class="mini">' + g.half + '. Halbzeit · Spielzeit ' + (Number.isFinite(g.gameElapsedMs) ? gameTime(g.gameElapsedMs) : 'nicht erfasst') + ' · <time>' + niceTime(g.timestamp) +
         '</time></div></div><button type="button" data-action="edit-goal" data-goal="' + escapeHtml(g.id) + '"' + (game.status === "finished" ? " disabled" : "") + '>Ändern</button></div>').join("")
       : '<p class="empty-note">Noch keine Tore erfasst.</p>'));
   }
@@ -223,15 +250,15 @@
     if (!goal) { openSheet("history"); return; }
     const teamId = ui.sheet.teamId || goal.teamId;
     const playerId = ui.sheet.teamId && ui.sheet.teamId !== goal.teamId ? null : goal.playerId;
-    const options = game.teams[teamId].players.map(p =>
+    const options = '<option value=""' + (playerId === null ? " selected" : "") + '>Schütze unbekannt</option>' + game.teams[teamId].players.map(p =>
       '<option value="' + escapeHtml(p.id) + '"' + (playerId === p.id ? " selected" : "") + '>#' + escapeHtml(p.number) + '</option>').join("");
     wrapSheet("Tor korrigieren",
-      '<p class="sheet-help">Erfasst: ' + niceTime(goal.timestamp) + ' · Zeitstempel bleibt erhalten.</p>' +
+      '<p class="sheet-help">Erfasst: ' + niceTime(goal.timestamp) + ' · Spielzeit: ' + (Number.isFinite(goal.gameElapsedMs) ? gameTime(goal.gameElapsedMs) : 'nicht erfasst') + '. Beides bleibt bei Korrekturen erhalten.</p>' +
       '<form data-form="edit-goal"><label for="edit-team">Mannschaft</label>' +
       '<select id="edit-team" name="teamId"><option value="own"' + (teamId === "own" ? " selected" : "") + '>Grün</option>' +
       '<option value="opponent"' + (teamId === "opponent" ? " selected" : "") + '>Rot</option></select>' +
       '<div class="spacer-10"></div><label for="edit-player">Schütze</label>' +
-      '<select id="edit-player" name="playerId" required>' + options + '</select>' +
+      '<select id="edit-player" name="playerId">' + options + '</select>' +
       '<div class="spacer-10"></div><label for="edit-half">Halbzeit</label>' +
       '<select id="edit-half" name="half"><option value="1"' + (goal.half === 1 ? " selected" : "") + '>1. Halbzeit</option>' +
       '<option value="2"' + (goal.half === 2 ? " selected" : "") + '>2. Halbzeit</option></select>' +
@@ -240,6 +267,7 @@
   }
   function renderSettings() {
     const own = game.teams.own, opp = game.teams.opponent;
+    const clock = Core.ensureClock(game);
     const teamFields = (tid, t) => '<div class="team-edit"><div><label for="team-' + tid + '">' + teams[tid] + ' · Mannschaftsname</label>' +
       '<input id="team-' + tid + '" name="' + tid + 'Name" maxlength="50" value="' + escapeHtml(t.name) + '"></div>' +
       '<div><label for="roster-' + tid + '">Kadergröße</label><input id="roster-' + tid +
@@ -251,6 +279,10 @@
     wrapSheet("Spiel & Einstellungen",
       (game.status === "finished" ? '<div class="finished-banner">Das Spiel ist beendet.</div>' : "") +
       '<form data-form="settings">' + teamFields("own", own) + teamFields("opponent", opp) +
+      '<h3>Spieluhr</h3><label for="clock-direction">Zählrichtung der Hallenuhr</label>' +
+      '<select id="clock-direction" name="clockDirection"><option value="up"' + (clock.direction === 'up' ? ' selected' : '') + '>Aufwärts · 00:00 → 20:00 (Standard)</option>' +
+      '<option value="down"' + (clock.direction === 'down' ? ' selected' : '') + '>Abwärts · 20:00 → 00:00</option></select>' +
+      '<p class="sheet-help">Eine Änderung betrifft nur die Anzeige und künftige Hallenuhr-Abgleiche, nie bereits gespeicherte Torzeiten.</p>' +
       '<p class="sheet-help">Die Kadergröße ist optional; erst mit beiden Angaben kann der HHV-Multiplikator begrenzt werden.</p>' +
       '<button class="primary-button full-button" type="submit">Einstellungen speichern</button></form>' +
       rosterButtons("own", own) + rosterButtons("opponent", opp) +
@@ -260,6 +292,30 @@
       '<button type="button" class="secondary-button full-button" data-action="finish">' +
       (game.status === "finished" ? "Spiel wieder öffnen" : "Spiel beenden") + '</button>' +
       '<button type="button" class="danger-button full-button" data-action="new-game">Neues Spiel beginnen</button>');
+  }
+
+  function renderClockSync() {
+    const view = Core.clockDisplay(game);
+    wrapSheet("Mit Hallenuhr synchronisieren",
+      '<p class="sheet-help">Aktuelle Hallenuhr in <strong>MM:SS</strong> eingeben (' +
+      (view.direction === "up" ? "aufwärts" : "abwärts") +
+      ' zählend). Nur die laufende Anzeige wird korrigiert. Zeitstempel und gespeicherte Spielzeiten bisheriger Tore bleiben unverändert.</p>' +
+      '<form data-form="clock-sync"><label for="sync-clock-value">Hallenuhr · MM:SS</label>' +
+      '<div class="form-row"><input id="sync-clock-value" name="clockTime" autofocus inputmode="numeric" ' +
+      'pattern="[0-9]{1,2}:[0-5][0-9]" maxlength="5" required placeholder="12:35" value="' + view.text + '">' +
+      '<button type="submit" class="primary-button">Abgleichen</button></div></form>');
+  }
+  function renderScorerSheet() {
+    const teamId = ui.sheet.teamId;
+    const team = game.teams[teamId];
+    const players = team.slots.filter(Boolean).map(id => Core.playerById(game, teamId, id)).filter(Boolean);
+    wrapSheet(teams[teamId] + " · Tor erfassen",
+      '<p class="sheet-help">Torschütze auswählen. Jeder Tipp zählt genau ein Tor. Ist der Schütze nicht bekannt, bleibt die Zuordnung offen und kann später im Verlauf ergänzt werden.</p>' +
+      (players.length ? '<div class="scorer-select">' + players.map(p =>
+        '<button type="button" class="scorer-choice" data-action="scoreboard-player" data-player="' +
+        escapeHtml(p.id) + '">#' + escapeHtml(p.number) + '</button>').join("") + '</div>' :
+        '<p class="empty-note">Noch keine aktiven Spieler erfasst.</p>') +
+      '<button type="button" class="secondary-button scorer-unknown" data-action="scoreboard-unknown">Schütze unbekannt · Tor buchen</button>');
   }
   function renderRename() {
     const { teamId, playerId } = ui.sheet;
@@ -281,6 +337,8 @@
       case "edit": renderEdit(); break;
       case "settings": renderSettings(); break;
       case "rename": renderRename(); break;
+      case "clock-sync": renderClockSync(); break;
+      case "scorer": renderScorerSheet(); break;
     }
   }
   function finishAndClose(fn, message) {
@@ -294,6 +352,29 @@
     if (act === "close") { closeSheet(); return; }
     if (act === "settings") { openSheet("settings"); return; }
     if (act === "history") { openSheet("history"); return; }
+    if (act === "clock-toggle") {
+      const view = Core.clockDisplay(game);
+      mutate(() => view.status === "running" ? Core.pauseClock(game) : Core.playClock(game),
+        view.status === "running" ? "Spieluhr angehalten" : "Spieluhr läuft");
+      return;
+    }
+    if (act === "clock-sync") { openSheet("clock-sync"); return; }
+    if (act === "half-end") {
+      if (!confirm(game.half === 1 ? "1. Halbzeit beenden? Anschließend startet Play die 2. Halbzeit." :
+        "2. Halbzeit und Spiel beenden?")) return;
+      mutate(() => Core.endHalf(game), game.half === 1 ? "Halbzeit beendet" : "Spiel beendet");
+      return;
+    }
+    if (act === "scoreboard") { openSheet("scorer", { teamId }); return; }
+    if (act === "scoreboard-player") {
+      const id = button.dataset.player;
+      finishAndClose(() => Core.recordGoal(game, ui.sheet.teamId, id), "Tor · " + numberOf(ui.sheet.teamId, id));
+      return;
+    }
+    if (act === "scoreboard-unknown") {
+      finishAndClose(() => Core.recordGoal(game, ui.sheet.teamId, null), "Tor · Schütze offen");
+      return;
+    }
     if (act === "home") {
       mutate(() => { game.ownHome = button.dataset.home === "true"; return true; }); return;
     }
@@ -359,6 +440,10 @@
   function onForm(form) {
     const values = new FormData(form);
     const type = form.dataset.form;
+    if (type === "clock-sync") {
+      finishAndClose(() => Core.syncHallClock(game, values.get("clockTime")), "Hallenuhr abgeglichen");
+      return;
+    }
     if (type === "lineup") {
       const teamId = ui.sheet.teamId;
       const valuesBySlot = Array.from({ length: 7 }, (_, i) => String(values.get("slot" + i) || "").trim());
@@ -386,13 +471,14 @@
     }
     if (type === "edit-goal") {
       const goalId = ui.sheet.goalId;
-      if (mutate(() => Core.editGoal(game, goalId, values.get("teamId"), values.get("playerId"), values.get("half")), "Tor korrigiert")) openSheet("history");
+      if (mutate(() => Core.editGoal(game, goalId, values.get("teamId"), values.get("playerId") || null, values.get("half")), "Tor korrigiert")) openSheet("history");
       return;
     }
     if (type === "settings") {
       const data = {
         ownName: values.get("ownName"), opponentName: values.get("opponentName"),
-        ownRoster: values.get("ownRoster"), opponentRoster: values.get("opponentRoster")
+        ownRoster: values.get("ownRoster"), opponentRoster: values.get("opponentRoster"),
+        clockDirection: values.get("clockDirection")
       };
       if (mutate(() => {
         // Check both sizes before applying anything, avoiding half-saved invalid forms.
@@ -401,10 +487,13 @@
             throw new Error("Kadergröße muss zwischen 1 und 30 liegen.");
           }
         }
-        Core.setTeamName(game, "own", data.ownName);
-        Core.setTeamName(game, "opponent", data.opponentName);
-        Core.setRosterSize(game, "own", data.ownRoster);
-        Core.setRosterSize(game, "opponent", data.opponentRoster);
+        const next = JSON.parse(JSON.stringify(game));
+        Core.setTeamName(next, "own", data.ownName);
+        Core.setTeamName(next, "opponent", data.opponentName);
+        Core.setRosterSize(next, "own", data.ownRoster);
+        Core.setRosterSize(next, "opponent", data.opponentRoster);
+        Core.setClockDirection(next, data.clockDirection);
+        game = next;
         return true;
       }, "Einstellungen gespeichert")) closeSheet();
     }
@@ -435,6 +524,7 @@
         const data = JSON.parse(text);
         if (!Core.isSupportedGame(data)) throw new Error("Die Datei enthält keinen unterstützten Spielstand.");
         if (!confirm("Gespeicherten Spielstand laden? Die aktuelle Erfassung wird überschrieben.")) return;
+        Core.ensureClock(data);
         game = data;
         saveGame(); closeSheet(); render(); toast("Spielstand geladen");
       }).catch(error => toast(error.message || "Spielstand konnte nicht geladen werden."));
@@ -457,6 +547,8 @@
     }
   });
   render();
+  // Spielzeit aus UTC-Anker rekonstruieren, ohne die Tastatur/Sheets periodisch neu zu rendern.
+  setInterval(updateClockDisplay, 500);
   if (ui.storageError) toast("Lokale Speicherung derzeit nicht verfügbar.");
   // Optional: offline reload after one successful HTTPS visit (not a native app).
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
