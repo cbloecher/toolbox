@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101a27">
+  <meta name="description" content="Mobiler Tor- und Torschützenzähler für Handball E-Jugend nach HHV-Regeln.">
+  <title>E-Jugend · Torzähler</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./core.js" defer></script>
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div class="brand"><span class="brand-ball" aria-hidden="true">◉</span><div><span class="eyebrow">HANDBALL · E-JUGEND</span><h1>Torzähler</h1></div></div>
+      <button type="button" class="icon-button" data-action="settings" aria-label="Spieleinstellungen">⚙</button>
+    </header>
+
+    <main>
+      <div class="game-tools">
+        <div class="home-selector" role="group" aria-label="Eigene Mannschaft spielt">
+          <span class="selector-label">Wir spielen</span>
+          <button type="button" id="home-btn" data-action="home" data-home="true">Heim</button>
+          <button type="button" id="away-btn" data-action="home" data-home="false">Auswärts</button>
+        </div>
+        <div class="half-selector" role="group" aria-label="Halbzeit">
+          <button type="button" id="first-half" data-action="half" data-half="1">1. HZ</button>
+          <button type="button" id="second-half" data-action="half" data-half="2">2. HZ</button>
+        </div>
+      </div>
+
+      <section class="board" id="board" aria-label="Mannschaften"></section>
+
+      <div class="quick-actions">
+        <button class="action-button" id="undo-button" data-action="undo" type="button">↶ <span>Letztes Tor zurück</span></button>
+        <button class="action-button" data-action="history" type="button">☷ <span>Verlauf</span></button>
+      </div>
+
+      <div id="last-event" class="last-event" role="status" aria-live="polite">Noch keine Tore erfasst.</div>
+      <section id="summary" class="summary" aria-label="Halbzeitwertung"></section>
+      <p class="info-line">Private Zählhilfe · Kein offizieller Spielbericht und keine Hallenanzeige.</p>
+    </main>
+  </div>
+  <div id="sheet-layer" aria-live="off"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
