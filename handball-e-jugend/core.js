@@ -227,6 +227,16 @@
     state.goals.push(goal);
     return goal;
   }
+  // Nummern werden beim Tor erstmals bekannt. Aufstellung und Wechsel sind nicht erforderlich.
+  function assignGoalNumber(state, goalId, number) {
+    assertMutable(state);
+    const goal = state.goals.find(g => g.id === goalId);
+    if (!goal) throw new Error("Torereignis nicht gefunden.");
+    const p = ensurePlayer(state, goal.teamId, number);
+    goal.playerId = p.id;
+    goal.editedAt = new Date().toISOString();
+    return p;
+  }
   function deleteGoal(state, goalId) {
     assertMutable(state);
     const index = state.goals.findIndex(g => g.id === goalId);
@@ -322,7 +332,7 @@
   }
   return {
     SLOT_COUNT, newGame, isSupportedGame, playerById, lookupNumber,
-    putInEmptySlot, substitute, recordGoal, deleteGoal, undoLastGoal, editGoal,
+    putInEmptySlot, substitute, recordGoal, assignGoalNumber, deleteGoal, undoLastGoal, editGoal,
     setHalf, setRosterSize, setTeamName, renamePlayer, halfStats, totalStats,
     multiplierLimit, finishGame, reopenGame,
     ensureClock, clockElapsed, clockDisplay, playClock, pauseClock, endHalf,
