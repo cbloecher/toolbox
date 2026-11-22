@@ -90,41 +90,39 @@
   }
   function teamOrder() { return game.ownHome ? ["own", "opponent"] : ["opponent", "own"]; }
 
-  function slotHtml(teamId, slot) {
-    const pId = game.teams[teamId].slots[slot];
-    const p = pId ? Core.playerById(game, teamId, pId) : null;
-    const halfGoals = pId ? game.goals.filter(g => g.teamId === teamId && g.playerId === pId && g.half === game.half).length : 0;
-    const keeper = slot === 0;
-    const empty = !p;
-    const role = keeper ? "Torwart" : "Feldspieler";
-    const label = empty
-      ? teams[teamId] + ": " + role + " " + (keeper ? "" : slot) + " erfassen"
-      : teams[teamId] + ": " + role + " Nummer " + p.number + ", " + halfGoals + " Tore in dieser Halbzeit. Tor buchen";
-    const meta = keeper ? (empty ? "Torwart einsetzen" : "TW · " + halfGoals + " Tore / HZ")
-      : (empty ? "belegen" : halfGoals + " Tore / HZ");
-    return '<button type="button" class="player-slot' + (keeper ? " keeper" : "") + (empty ? " empty" : "") + '" ' +
-      'data-action="slot" data-team="' + teamId + '" data-slot="' + slot + '" aria-label="' + escapeHtml(label) + '"' +
-      (game.status === "finished" ? " disabled" : "") + '>' +
-      '<span class="player-number">' + (empty ? "+" : escapeHtml(p.number)) + '</span>' +
-      '<span class="player-meta">' + escapeHtml(meta) + '</span></button>';
-  }
   function teamHtml(teamId) {
-    const t = game.teams[teamId];
+    const team = game.teams[teamId];
     const total = Core.totalStats(game, teamId);
     const current = Core.halfStats(game, teamId, game.half);
     const home = (teamId === "own") === game.ownHome;
-    return '<section class="team-panel ' + (teamId === "opponent" ? "opponent" : "") + '" aria-label="' + escapeHtml(t.name) + '">' +
-      '<header class="team-header">' +
-      '<div class="team-tag">' + teams[teamId] + ' · ' + (home ? "Heim" : "Auswärts") + '</div>' +
-      '<div class="team-name" title="' + escapeHtml(t.name) + '">' + escapeHtml(t.name) + '</div>' +
-      '<button type="button" class="team-goals" data-action="scoreboard" data-team="' + teamId + '" aria-label="Tor für ' + escapeHtml(t.name) + ' erfassen, Schütze wählen"' + (game.status === "finished" ? " disabled" : "") + '>' + total.goals + '</button>' +
-      '<div class="team-stats">' + current.shooters + ' Schützen / HZ · <strong>Σ ' + total.points + ' Pkt' + (total.provisional ? "*" : "") + '</strong></div>' +
-      '</header><div class="team-fields"><div class="position-caption"><span>Torwart</span><span>+' + (t.players.length - t.slots.filter(Boolean).length) + ' Bank</span></div>' +
-      slotHtml(teamId, 0) +
-      '<div class="position-caption"><span>Feldspieler</span><span>6 Plätze</span></div>' +
-      '<div class="field-grid">' + [1, 2, 3, 4, 5, 6].map(i => slotHtml(teamId, i)).join("") + '</div></div>' +
-      '<div class="team-actions"><button type="button" class="lineup-button" data-action="lineup" data-team="' + teamId + '"' + (game.status === "finished" ? " disabled" : "") + '>≡ Aufstellung</button>' +
-      '<button type="button" class="change-button" data-action="sub" data-team="' + teamId + '"' + (game.status === "finished" ? " disabled" : "") + '>⇄ Wechsel</button></div></section>';
+    const scorers = new Map();
+    let unknown = 0;
+    for (const goal of game.goals) {
+      if (goal.teamId !== teamId || goal.half !== game.half) continue;
+      if (goal.playerId === null) { unknown++; continue; }
+      scorers.set(goal.playerId, (scorers.get(goal.playerId) || 0) + 1);
+    }
+    const rows = [...scorers.entries()]
+      .map(([pid, goals]) => ({ player: Core.playerById(game, teamId, pid), goals }))
+      .filter(row => row.player)
+      .sort((a,b) => b.goals - a.goals || Number(a.player.number) - Number(b.player.number));
+    const chips = rows.map(row => '<span class="shooter-chip">#' +
+      escapeHtml(row.player.number) + ' · ' + row.goals + '</span>').join("");
+    const open = unknown ? '<span class="shooter-chip unknown-chip">? · ' + unknown + '</span>' : "";
+    return '<section class="team-panel ' + (teamId === "opponent" ? "opponent" : "") + '">' +
+      '<button type="button" class="team-tap" data-action="team-goal" data-team="' + teamId + '"' +
+      (game.status === "finished" ? ' disabled' : '') +
+      ' aria-label="Tor für ' + escapeHtml(team.name) + ' zählen und Schützen auswählen">' +
+      '<div class="team-header"><div class="team-tag">' + teams[teamId] + ' · ' +
+      (home ? "Heim" : "Auswärts") + '</div>' +
+      '<div class="team-name">' + escapeHtml(team.name) + '</div>' +
+      '<div class="team-goals" aria-label="' + total.goals + ' Tore">' + total.goals + '</div>' +
+      '<div class="team-stats">' + current.shooters + ' Schützen / HZ · <strong>Σ ' +
+      total.points + ' Pkt' + (total.provisional ? '*' : '') + '</strong></div></div>' +
+      '<div class="team-bottom"><span class="team-tap-hint">＋ Tor erfassen</span>' +
+      '<span class="team-scorer-caption">Torschützen · aktuelle Halbzeit</span>' +
+      '<div class="team-scorers">' + (chips + open || '<span class="no-shooters">Noch keine Tore</span>') +
+      '</div></div></button></section>';
   }
   function renderSummary() {
     const own1 = Core.halfStats(game, "own", 1), own2 = Core.halfStats(game, "own", 2);
@@ -156,7 +154,7 @@
     byId("last-event").textContent = game.status === "finished" ? "Spiel beendet · Zum Ändern in den Einstellungen wieder öffnen."
       : last ? "Letztes Tor: " + teams[last.teamId] + " " + numberOf(last.teamId, last.playerId) +
         " · " + last.half + ". HZ · " + niceTime(last.timestamp)
-      : "Noch keine Tore erfasst. Leeres Feld antippen und Rückennummer eingeben.";
+      : "Noch keine Tore. Mannschaft antippen, um ein Tor zu erfassen.";
     renderSummary();
     updateClockDisplay();
     renderSheet();
@@ -180,60 +178,6 @@
       '<div class="sheet-head"><h2>' + escapeHtml(title) + '</h2><button type="button" class="close-button" data-action="close" aria-label="Schließen">×</button></div>' +
       body + '</section></div>';
     document.body.classList.add("sheet-open");
-  }
-  function benchOptions(teamId) {
-    const t = game.teams[teamId];
-    return t.players.filter(p => !t.slots.includes(p.id)).sort((a,b) => Number(a.number) - Number(b.number));
-  }
-  function renderAssign() {
-    const { teamId, slot } = ui.sheet;
-    const bank = benchOptions(teamId);
-    wrapSheet(teams[teamId] + " · " + (slot === 0 ? "Torwart" : "Feldspieler") + " besetzen",
-      '<p class="sheet-help">Neue Rückennummer eingeben oder einen bereits erfassten Bankspieler einsetzen. Das zählt noch kein Tor.</p>' +
-      '<form data-form="assign"><label for="number">Rückennummer (0–99)</label><div class="form-row">' +
-      '<input autofocus id="number" name="number" inputmode="numeric" pattern="[0-9]{1,2}" maxlength="2" autocomplete="off" required placeholder="Nr.">' +
-      '<button class="primary-button" type="submit">Einsetzen</button></div></form>' +
-      (bank.length ? '<h3>Bekannte Ersatzspieler</h3><div class="bench-list">' +
-        bank.map(p => '<button type="button" class="bench-button" data-action="assign-bench" data-number="' + p.number + '">#' + p.number + '</button>').join("") + '</div>' : ""));
-  }
-  function renderLineup() {
-    const { teamId } = ui.sheet;
-    const t = game.teams[teamId];
-    const rows = t.slots.map((pId, slot) => {
-      const p = pId ? Core.playerById(game, teamId, pId) : null;
-      const label = slot === 0 ? "Torwart" : "Feldspieler " + slot;
-      return '<div class="lineup-row"><label for="lineup-' + slot + '">' + label + '</label>' +
-        '<input id="lineup-' + slot + '" name="slot' + slot + '" inputmode="numeric" ' +
-        'type="text" pattern="[0-9]{1,2}" maxlength="2" autocomplete="off" ' +
-        (p ? 'value="' + escapeHtml(p.number) + '" readonly title="Bereits besetzt; Änderung über Wechsel oder Nummernkorrektur"' :
-             'placeholder="Nr." ' + (t.slots.slice(0, slot).every(Boolean) ? 'autofocus ' : '')) +
-        'enterkeyhint="next" aria-label="' + label + ' – Rückennummer"></div>';
-    }).join("");
-    wrapSheet(teams[teamId] + " · Erstaufstellung (6+1)",
-      '<p class="sheet-help">Sieben Nummern direkt untereinander eingeben: Torwart + sechs Feldspieler. Mit „Weiter“ auf der Tastatur zum nächsten Feld. Leere Plätze sind erlaubt. Es werden noch keine Tore gezählt.</p>' +
-      '<form data-form="lineup"><div class="lineup-grid">' + rows + '</div>' +
-      '<button type="submit" class="primary-button full-button">Aufstellung übernehmen</button></form>' +
-      '<p class="sheet-help lineup-footnote">Bereits belegte Positionen sind geschützt; Spielerwechsel bitte über „Wechsel“ erfassen.</p>');
-    const firstEmpty = layer.querySelector('.lineup-grid input:not([readonly])');
-    // Bei einem Tap direkt fokussieren, damit die mobile Zifferntastatur aufgeht.
-    if (firstEmpty) firstEmpty.focus();
-  }
-  function renderSub() {
-    const { teamId, slot } = ui.sheet;
-    const t = game.teams[teamId], bank = benchOptions(teamId);
-    wrapSheet(teams[teamId] + " · Spielerwechsel",
-      '<p class="sheet-help">' + (slot === null ? "1. Spieler auswählen, der das Feld verlässt." :
-        "2. Ersatzspieler von der Bank wählen oder neue Rückennummer eingeben. Der bisherige Spieler geht auf die Bank.") + '</p>' +
-      '<div class="slot-list">' + t.slots.map((pId, i) => '<button class="slot-option ' + (slot === i ? "selected" : "") +
-        '" type="button" data-action="outgoing" data-slot="' + i + '"' + (!pId ? " disabled" : "") + '>' +
-        (pId ? numberOf(teamId, pId) : "–") + '<small>' + (i === 0 ? "Torwart" : "Feld " + i) + '</small></button>').join("") + '</div>' +
-      (slot !== null ? '<h3>Bank (' + bank.length + ')</h3>' +
-        (bank.length ? '<div class="bench-list">' + bank.map(p =>
-          '<button class="bench-button" type="button" data-action="sub-bench" data-number="' + p.number + '">#' + p.number + '</button>').join("") + '</div>'
-          : '<p class="empty-note">Noch keine Ersatzspieler bekannt.</p>') +
-        '<h3>Neuen Spieler einwechseln</h3><form data-form="sub"><div class="form-row">' +
-        '<input autofocus id="number" name="number" inputmode="numeric" pattern="[0-9]{1,2}" maxlength="2" autocomplete="off" required placeholder="Rückennummer" aria-label="Rückennummer">' +
-        '<button type="submit" class="primary-button">Wechseln</button></div></form>' : ""));
   }
   function renderHistory() {
     const rows = game.goals.slice().reverse();
@@ -263,6 +207,9 @@
       '<select id="edit-half" name="half"><option value="1"' + (goal.half === 1 ? " selected" : "") + '>1. Halbzeit</option>' +
       '<option value="2"' + (goal.half === 2 ? " selected" : "") + '>2. Halbzeit</option></select>' +
       '<button type="submit" class="primary-button full-button">Korrektur speichern</button></form>' +
+      '<button type="button" class="secondary-button full-button" data-action="edit-keypad" data-goal="' +
+      escapeHtml(goal.id) + '"' + (game.status === "finished" ? " disabled" : "") +
+      '>Schützennummer über Tastenfeld korrigieren</button>' +
       '<button type="button" class="danger-button full-button" data-action="delete-goal">Dieses Tor löschen</button>');
   }
   function renderSettings() {
@@ -272,7 +219,7 @@
       '<input id="team-' + tid + '" name="' + tid + 'Name" maxlength="50" value="' + escapeHtml(t.name) + '"></div>' +
       '<div><label for="roster-' + tid + '">Kadergröße</label><input id="roster-' + tid +
       '" name="' + tid + 'Roster" type="number" min="1" max="30" placeholder="?" value="' + (t.rosterSize === null ? "" : t.rosterSize) + '"></div></div>';
-    const rosterButtons = (tid, t) => '<h3>' + teams[tid] + ' · Rückennummern berichtigen</h3>' +
+    const rosterButtons = (tid, t) => '<h3>' + teams[tid] + ' · Rückennummern korrigieren</h3>' +
       (t.players.length ? '<div class="bench-list">' + t.players.slice().sort((a,b) => +a.number - +b.number).map(p =>
         '<button type="button" class="bench-button" data-action="rename" data-team="' + tid + '" data-player="' + escapeHtml(p.id) + '">#' + p.number + '</button>').join("") + '</div>'
         : '<p class="empty-note">Noch keine Spieler angelegt.</p>');
@@ -310,16 +257,27 @@
       '<button type="submit" class="primary-button full-button">Hallenuhr abgleichen</button></form>');
   }
   function renderScorerSheet() {
-    const teamId = ui.sheet.teamId;
-    const team = game.teams[teamId];
-    const players = team.slots.filter(Boolean).map(id => Core.playerById(game, teamId, id)).filter(Boolean);
-    wrapSheet(teams[teamId] + " · Tor erfassen",
-      '<p class="sheet-help">Torschütze auswählen. Jeder Tipp zählt genau ein Tor. Ist der Schütze nicht bekannt, bleibt die Zuordnung offen und kann später im Verlauf ergänzt werden.</p>' +
-      (players.length ? '<div class="scorer-select">' + players.map(p =>
-        '<button type="button" class="scorer-choice" data-action="scoreboard-player" data-player="' +
-        escapeHtml(p.id) + '">#' + escapeHtml(p.number) + '</button>').join("") + '</div>' :
-        '<p class="empty-note">Noch keine aktiven Spieler erfasst.</p>') +
-      '<button type="button" class="secondary-button scorer-unknown" data-action="scoreboard-unknown">Schütze unbekannt · Tor buchen</button>');
+    const { goalId, teamId } = ui.sheet;
+    const goal = game.goals.find(g => g.id === goalId);
+    if (!goal) { openSheet("history"); return; }
+    const digits = ui.sheet.number || "";
+    const keys = ["1","2","3","4","5","6","7","8","9","⌫","0","?"];
+    const grid = keys.map(key => {
+      const action = key === "⌫" ? "keypad-back" : key === "?" ? "keypad-unknown" : "keypad-digit";
+      return '<button type="button" class="keypad-key' + (key === "?" ? ' keypad-unknown' : '') +
+        '" data-action="' + action + '"' + (action === "keypad-digit" ? ' data-digit="' + key + '"' : '') +
+        ' aria-label="' + (key === "⌫" ? "Letzte Ziffer löschen" : key === "?" ? "Schütze unbekannt" : "Ziffer " + key) +
+        '">' + key + '</button>';
+    }).join("");
+    wrapSheet(teams[teamId] + " · Schütze",
+      '<p class="sheet-help">Das Tor ist bereits gezählt. Nummer 0–99 eingeben und übernehmen. ' +
+      '„?“ oder Schließen belässt den Schützen unbekannt.</p>' +
+      '<div class="keypad-preview" aria-live="polite">' +
+      '<span>Rückennummer</span><strong>' + (digits ? '#' + escapeHtml(digits) : '–') + '</strong></div>' +
+      '<div class="number-keypad">' + grid + '</div>' +
+      '<button type="button" class="primary-button full-button" data-action="keypad-apply"' +
+      (digits ? '' : ' disabled') + '>Schütze übernehmen</button>' +
+      '<button type="button" class="danger-button full-button" data-action="keypad-remove">Tor zurücknehmen</button>');
   }
   function renderRename() {
     const { teamId, playerId } = ui.sheet;
@@ -334,9 +292,6 @@
   function renderSheet() {
     if (!ui.sheet) { document.body.classList.remove("sheet-open"); layer.replaceChildren(); return; }
     switch (ui.sheet.type) {
-      case "assign": renderAssign(); break;
-      case "lineup": renderLineup(); break;
-      case "sub": renderSub(); break;
       case "history": renderHistory(); break;
       case "edit": renderEdit(); break;
       case "settings": renderSettings(); break;
@@ -352,7 +307,6 @@
   function onAction(button) {
     const act = button.dataset.action;
     const teamId = button.dataset.team;
-    const slot = Number(button.dataset.slot);
     if (act === "close") { closeSheet(); return; }
     if (act === "settings") { openSheet("settings"); return; }
     if (act === "history") { openSheet("history"); return; }
@@ -369,14 +323,47 @@
       mutate(() => Core.endHalf(game), game.half === 1 ? "Halbzeit beendet" : "Spiel beendet");
       return;
     }
-    if (act === "scoreboard") { openSheet("scorer", { teamId }); return; }
-    if (act === "scoreboard-player") {
-      const id = button.dataset.player;
-      finishAndClose(() => Core.recordGoal(game, ui.sheet.teamId, id), "Tor · " + numberOf(ui.sheet.teamId, id));
+    if (act === "team-goal") {
+      const goal = mutate(() => Core.recordGoal(game, teamId, null), "Tor · " + teams[teamId]);
+      if (goal) openSheet("scorer", { teamId, goalId: goal.id, number: "" });
       return;
     }
-    if (act === "scoreboard-unknown") {
-      finishAndClose(() => Core.recordGoal(game, ui.sheet.teamId, null), "Tor · Schütze offen");
+    if (act === "keypad-digit") {
+      const digit = button.dataset.digit;
+      ui.sheet.number = (ui.sheet.number || "").length >= 2 ? digit : (ui.sheet.number || "") + digit;
+      renderSheet(); return;
+    }
+    if (act === "keypad-back") {
+      ui.sheet.number = (ui.sheet.number || "").slice(0, -1);
+      renderSheet(); return;
+    }
+    if (act === "keypad-unknown") {
+      const goal = game.goals.find(g => g.id === ui.sheet.goalId);
+      if (!goal) { closeSheet(); return; }
+      if (goal.playerId !== null) {
+        const changed = mutate(() => Core.editGoal(game, goal.id, goal.teamId, null, goal.half),
+          "Schütze als unbekannt erfasst");
+        if (changed) closeSheet();
+      } else {
+        closeSheet(); toast("Schütze offen · später im Verlauf zuordnen");
+      }
+      return;
+    }
+    if (act === "keypad-apply") {
+      const { goalId, number } = ui.sheet;
+      if (!number) { toast("Rückennummer wählen oder ? antippen."); return; }
+      const player = mutate(() => Core.assignGoalNumber(game, goalId, number), "Schütze #" + number + " gespeichert");
+      if (player) closeSheet();
+      return;
+    }
+    if (act === "keypad-remove") {
+      const removed = mutate(() => Core.deleteGoal(game, ui.sheet.goalId), "Tor zurückgenommen");
+      if (removed) closeSheet();
+      return;
+    }
+    if (act === "edit-keypad") {
+      const goal = game.goals.find(g => g.id === button.dataset.goal);
+      if (goal) openSheet("scorer", { teamId: goal.teamId, goalId: goal.id, number: "" });
       return;
     }
     if (act === "home") {
@@ -392,26 +379,6 @@
     if (act === "undo") {
       if (!game.goals.length) return;
       mutate(() => Core.undoLastGoal(game), "Letztes Tor zurückgenommen"); return;
-    }
-    if (act === "slot") {
-      const pId = game.teams[teamId].slots[slot];
-      if (!pId) openSheet("assign", { teamId, slot });
-      else mutate(() => Core.recordGoal(game, teamId, pId), "Tor · " + teams[teamId] + " " + numberOf(teamId, pId));
-      return;
-    }
-    if (act === "lineup") { openSheet("lineup", { teamId }); return; }
-    if (act === "sub") { openSheet("sub", { teamId, slot: null }); return; }
-    if (act === "outgoing") {
-      ui.sheet.slot = slot; renderSheet();
-      const numberInput = layer.querySelector('form[data-form="sub"] input[name="number"]');
-      if (numberInput) numberInput.focus();
-      return;
-    }
-    if (act === "assign-bench") {
-      finishAndClose(() => Core.putInEmptySlot(game, ui.sheet.teamId, ui.sheet.slot, button.dataset.number), "#" + button.dataset.number + " eingesetzt"); return;
-    }
-    if (act === "sub-bench") {
-      finishAndClose(() => Core.substitute(game, ui.sheet.teamId, ui.sheet.slot, button.dataset.number), "Wechsel: #" + button.dataset.number); return;
     }
     if (act === "edit-goal") { openSheet("edit", { goalId: button.dataset.goal }); return; }
     if (act === "delete-goal") {
@@ -453,27 +420,6 @@
       }
       finishAndClose(() => Core.syncHallClock(game, mm + ":" + ss.padStart(2, "0")), "Hallenuhr abgeglichen");
       return;
-    }
-    if (type === "lineup") {
-      const teamId = ui.sheet.teamId;
-      const valuesBySlot = Array.from({ length: 7 }, (_, i) => String(values.get("slot" + i) || "").trim());
-      finishAndClose(() => {
-        // Zuerst auf einer Kopie prüfen: keine Teilbelegung bei ungültiger Nummer.
-        const next = JSON.parse(JSON.stringify(game));
-        valuesBySlot.forEach((number, slot) => {
-          if (next.teams[teamId].slots[slot] !== null || !number) return;
-          Core.putInEmptySlot(next, teamId, slot, number);
-        });
-        game = next;
-        return true;
-      }, "Aufstellung übernommen");
-      return;
-    }
-    if (type === "assign") {
-      finishAndClose(() => Core.putInEmptySlot(game, ui.sheet.teamId, ui.sheet.slot, values.get("number")), "Spieler eingesetzt"); return;
-    }
-    if (type === "sub") {
-      finishAndClose(() => Core.substitute(game, ui.sheet.teamId, ui.sheet.slot, values.get("number")), "Spieler gewechselt"); return;
     }
     if (type === "rename") {
       if (mutate(() => { Core.renamePlayer(game, ui.sheet.teamId, ui.sheet.playerId, values.get("number")); return true; }, "Rückennummer geändert")) openSheet("settings");
@@ -546,14 +492,20 @@
   });
   document.addEventListener("keydown", function (event) {
     if (event.key === "Escape" && ui.sheet) { closeSheet(); return; }
-    if (event.key !== "Enter" || !ui.sheet || ui.sheet.type !== "lineup") return;
-    const input = event.target;
-    if (!input.matches || !input.matches('.lineup-grid input:not([readonly])')) return;
-    const fields = [...layer.querySelectorAll('.lineup-grid input:not([readonly])')];
-    const pos = fields.indexOf(input);
-    if (pos !== -1 && pos < fields.length - 1) {
+    if (!ui.sheet || ui.sheet.type !== "scorer") return;
+    if (/^[0-9]$/.test(event.key)) {
       event.preventDefault();
-      fields[pos + 1].focus();
+      ui.sheet.number = (ui.sheet.number || "").length >= 2 ? event.key : (ui.sheet.number || "") + event.key;
+      renderSheet();
+    } else if (event.key === "Backspace") {
+      event.preventDefault();
+      ui.sheet.number = (ui.sheet.number || "").slice(0, -1);
+      renderSheet();
+    } else if (event.key === "?") {
+      event.preventDefault(); closeSheet();
+    } else if (event.key === "Enter" && ui.sheet.number) {
+      event.preventDefault();
+      onAction({ dataset: { action: "keypad-apply" } });
     }
   });
   render();
