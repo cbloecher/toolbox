@@ -1,5 +1,5 @@
 /* Optional offline cache: active only on HTTPS/localhost. Increase version on release. */
-const CACHE = "hhv-e-jugend-v4";
+const CACHE = "hhv-e-jugend-v5";
 const ASSETS = ["./", "./index.html", "./styles.css", "./core.js", "./app.js"];
 
 self.addEventListener("install", (event) => {
