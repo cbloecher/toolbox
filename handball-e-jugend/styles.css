@@ -121,3 +121,24 @@ h1{margin:2px 0 0;font-size:24px;letter-spacing:-.04em;line-height:1}
 .clock-sync-fields label{margin:0}
 .clock-sync-fields input{text-align:center;font-size:25px;font-weight:850;font-variant-numeric:tabular-nums}
 .clock-sync-fields > span{align-self:end;padding-bottom:8px;text-align:center;font-size:25px;font-weight:850}
+
+/* Team-level one-tap goal entry; no preconfigured lineup or substitutes needed. */
+.team-tap{width:100%;flex:1;min-height:258px;padding:0;margin:0;display:flex;flex-direction:column;border:0;background:transparent;color:inherit;text-align:center}
+.team-tap .team-header{width:100%;min-height:144px}
+.team-tap .team-goals{display:block;width:100%;margin-top:7px;border:0;min-height:53px;font-size:54px;font-variant-numeric:tabular-nums;cursor:inherit}
+.team-tap:active:not(:disabled) .team-header{filter:brightness(1.14)}
+.team-tap:focus-visible{outline:3px solid #f7d769;outline-offset:-3px}
+.team-bottom{flex:1;width:100%;display:flex;flex-direction:column;align-items:center;padding:12px 7px 13px;gap:9px}
+.team-tap-hint{width:100%;background:color-mix(in srgb,var(--team),transparent 80%);border:1px solid color-mix(in srgb,var(--team),#c4d6e6 35%);color:#f4f8fc;font-weight:850;font-size:14px;padding:11px 6px;border-radius:10px}
+.team-scorer-caption{font-size:10px;letter-spacing:.045em;color:#b7c9db;font-weight:700}
+.team-scorers{width:100%;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:5px}
+.shooter-chip{background:#263d50;border:1px solid #496077;border-radius:7px;padding:5px 7px;font-size:11px;font-weight:800;color:#eaf3fb;white-space:nowrap}
+.unknown-chip{border-color:#94703c;color:#ffdf9e}
+.no-shooters{font-size:11px;color:#94a9bd}
+.keypad-preview{display:flex;align-items:center;justify-content:space-between;border:1px solid #c9d8e7;border-radius:12px;background:#e3ebf2;padding:9px 16px;margin-bottom:12px;font-weight:700;color:#344d61}
+.keypad-preview strong{font-size:30px;font-variant-numeric:tabular-nums;color:#152b40}
+.number-keypad{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.keypad-key{min-height:61px;border:1px solid #afc3d7;background:white;color:#172d40;border-radius:12px;font-size:26px;font-weight:850;touch-action:manipulation}
+.keypad-key:active{background:#cce3f5}
+.keypad-unknown{background:#fff1da;color:#8c5b18;border-color:#e0c290}
+@media(max-width:375px){.team-tap{min-height:240px}.team-tap .team-header{padding:11px 4px}.team-bottom{padding:9px 5px}.keypad-key{min-height:56px}}
